@@ -63,6 +63,17 @@ complete the posting at point. The correct currency is determined
 from the open directive for the relevant account."
   :type 'boolean)
 
+(defcustom beancount-bullet-list
+  '("年"
+    "月"
+    "◉"
+    "○"
+    "✸"
+    "✿")
+  "This variable contains the list of bullets.
+It can contain any number of symbols, which will be repeated."
+  :type '(repeat (string :tag "Bullet character")))
+
 (defgroup beancount-faces nil "Beancount mode highlighting" :group 'beancount)
 
 (defface beancount-directive
@@ -243,6 +254,23 @@ from the open directive for the relevant account."
         (otherwise nil))
     nil))
 
+(defun beancount-set-outline-char ()
+  (if outline-minor-mode
+      (compose-region (1- (match-end 1))
+                      (match-end 1)
+                      (string-to-char (nth (mod (1- (funcall outline-level))
+                                                (length beancount-bullet-list))
+                                           beancount-bullet-list))))
+  nil)
+
+(defun beancount-outline-hide-prefix ()
+  (if outline-minor-mode
+      (put-text-property (match-beginning 1)
+                         (1- (match-end 1))
+                         'invisible t))
+  nil)
+
+
 (defvar beancount-font-lock-keywords
   `((,beancount-transaction-regexp (1 'beancount-date)
                                    (2 (beancount-face-by-state (match-string 2)) t)
@@ -255,15 +283,17 @@ from the open directive for the relevant account."
     (,beancount-timestamped-directive-regexp (1 'beancount-date)
                                              (2 'beancount-directive))
     ;; Fontify section headers when composed with outline-minor-mode.
-    (,(concat "^\\(" beancount-outline-regexp "\\).*") . (0 (beancount-outline-face)))
+    (,(concat "^\\(" beancount-outline-regexp "\\) .*") (0 (beancount-outline-face))
+                                                        (1 (beancount-set-outline-char))
+                                                        (2 (beancount-outline-hide-prefix)))
     ;; Tags and links.
     (,(concat "\\#[" beancount-tag-chars "]*") . 'beancount-tag)
     (,(concat "\\^[" beancount-tag-chars "]*") . 'beancount-link)
     ;; Number followed by currency not covered by previous rules.
     (,(concat beancount-number-regexp "\\s-+" beancount-currency-regexp) . 'beancount-amount)
     ;; Accounts not covered by previous rules.
-    (,beancount-account-regexp . 'beancount-account)
-    ))
+    (,beancount-account-regexp . 'beancount-account)))
+
 
 (defun beancount-tab-dwim (&optional arg)
   (interactive "P")
@@ -331,14 +361,14 @@ from the open directive for the relevant account."
   (setq-local outline-level #'beancount-outline-level)
 
   (setq imenu-generic-expression
-	(list (list nil (concat "^" beancount-outline-regexp "\\s-+\\(.*\\)$") 2))))
+        (list (list nil (concat "^" beancount-outline-regexp "\\s-+\\(.*\\)$") 2))))
 
 (defun beancount-collect-pushed-tags (begin end)
   "Return list of all pushed (and not popped) tags in the region."
   (goto-char begin)
   (let ((tags (make-hash-table :test 'equal)))
     (while (re-search-forward
-         (concat "^\\(push\\|pop\\)tag\\s-+\\(#[" beancount-tag-chars "]+\\)") end t)
+            (concat "^\\(push\\|pop\\)tag\\s-+\\(#[" beancount-tag-chars "]+\\)") end t)
       (if (string-equal (match-string 1) "push")
           (puthash (match-string-no-properties 2) nil tags)
         (remhash (match-string-no-properties 2) tags)))
@@ -551,7 +581,7 @@ will allow to align all numbers."
         (unless (eq spaces (- number-beginning account-end))
           (goto-char account-end)
           (delete-region account-end number-beginning)
-          (insert (make-string spaces ? )))))))
+          (insert (make-string spaces ?\s)))))))
 
 (defun beancount-indent-line ()
   (let ((indent (beancount-compute-indentation))
@@ -623,8 +653,7 @@ Uses ido niceness according to `beancount-use-ido'."
        (while (and (not (eobp)) (< (point) end-marker))
          (beginning-of-line)
          (progn ,@exprs)
-         (forward-line 1)
-         ))))
+         (forward-line 1)))))
 
 (defun beancount-align-numbers (begin end &optional requested-currency-column)
   "Align all numbers in the given region. CURRENCY-COLUMN is the character
@@ -652,8 +681,7 @@ align with the fill-column."
                                    beancount-currency-regexp)
                            line)
          (push (length (match-string 1 line)) prefix-widths)
-         (push (length (match-string 2 line)) number-widths)
-         )))
+         (push (length (match-string 2 line)) number-widths))))
 
     (when prefix-widths
       ;; Loop again to make the adjustments to the numbers.
@@ -666,8 +694,7 @@ align with the fill-column."
                   (max (- requested-currency-column (length number-padding) number-width 1)
                        max-prefix-width)
                 max-prefix-width))
-             (prefix-format (format "%%-%ss" max-prefix-width))
-             )
+             (prefix-format (format "%%-%ss" max-prefix-width)))
 
         (beancount-for-line-in-region
          begin end
@@ -681,7 +708,7 @@ align with the fill-column."
              (delete-region (line-beginning-position) (line-end-position))
              (let* ((prefix (match-string 1 line))
                     (number (match-string 2 line))
-                    (rest (match-string 3 line)) )
+                    (rest (match-string 3 line)))
                (insert (format prefix-format prefix))
                (insert number-padding)
                (insert (format number-format number))
@@ -712,7 +739,7 @@ this column."
   (beginning-of-line)
   (while (and (> (point) (point-min))
               (not (looking-at
-                      "[0-9][0-9][0-9][0-9][\-/][0-9][0-9][\-/][0-9][0-9]")))
+                    "[0-9][0-9][0-9][0-9][\-/][0-9][0-9][\-/][0-9][0-9]")))
     (forward-line -1)))
 
 
@@ -746,8 +773,7 @@ what that column is and returns it (an integer)."
           (forward-line -1))
         (when (or (looking-at posting-regexp)
                   (looking-at balance-regexp))
-          (setq column (- (match-beginning 1) (point))))
-        ))
+          (setq column (- (match-beginning 1) (point))))))
     column))
 
 (defun beancount--account-currency (account)
@@ -775,7 +801,7 @@ what that column is and returns it (an integer)."
                (currency (beancount--account-currency account)))
           (when currency
             (save-excursion
-	      (goto-char pos)
+              (goto-char pos)
               (insert " " currency))))))))
 
 (defun beancount-insert-date ()
