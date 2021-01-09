@@ -233,13 +233,13 @@ from the open directive for the relevant account."
 (defun beancount-outline-face ()
   (if outline-minor-mode
       (cl-case (funcall outline-level)
-      (1 'org-level-1)
-      (2 'org-level-2)
-      (3 'org-level-3)
-      (4 'org-level-4)
-      (5 'org-level-5)
-      (6 'org-level-6)
-      (otherwise nil))
+        (1 'outline-1)
+        (2 'outline-2)
+        (3 'outline-3)
+        (4 'outline-4)
+        (5 'outline-5)
+        (6 'outline-6)
+        (otherwise nil))
     nil))
 
 (defvar beancount-font-lock-keywords
