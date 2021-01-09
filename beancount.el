@@ -120,6 +120,7 @@ from the open directive for the relevant account."
 
 (defconst beancount-no-account-directive-names
   '("commodity"
+    "custom"
     "event"
     "price"
     "query"
