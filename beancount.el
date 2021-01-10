@@ -64,15 +64,21 @@ from the open directive for the relevant account."
   :type 'boolean)
 
 (defcustom beancount-bullet-list
-  '("年"
-    "月"
-    "◉"
-    "○"
-    "✸"
-    "✿")
+  '(?年
+    ?月
+    ?◉
+    ?○
+    ?✸
+    ?✿)
   "This variable contains the list of bullets.
 It can contain any number of symbols, which will be repeated."
-  :type '(repeat (string :tag "Bullet character")))
+  :type '(repeat))
+
+(defcustom beancount-flag-icons-alist
+  '(("*" . ?☑)
+    ("!" . ?☐))
+  "Alist of UTF-8 icons for transaction flags."
+  :type '(alist :key-type string :value-type character))
 
 (defgroup beancount-faces nil "Beancount mode highlighting" :group 'beancount)
 
@@ -258,9 +264,9 @@ It can contain any number of symbols, which will be repeated."
   (if outline-minor-mode
       (compose-region (1- (match-end 1))
                       (match-end 1)
-                      (string-to-char (nth (mod (1- (funcall outline-level))
-                                                (length beancount-bullet-list))
-                                           beancount-bullet-list))))
+                      (nth (mod (1- (funcall outline-level))
+                                (length beancount-bullet-list))
+                           beancount-bullet-list)))
   nil)
 
 (defun beancount-outline-hide-prefix ()
@@ -270,11 +276,20 @@ It can contain any number of symbols, which will be repeated."
                          'invisible t))
   nil)
 
+(defun beancount-set-flag-char ()
+  (let ((c (assoc-string (match-string-no-properties 2)
+                         beancount-flag-icons-alist)))
+    (if (listp c)
+      (compose-region (match-beginning 2)
+                      (match-end 2)
+                      (cdr c))))
+  nil)
 
 (defvar beancount-font-lock-keywords
   `((,beancount-transaction-regexp (1 'beancount-date)
-                                   (2 (beancount-face-by-state (match-string 2)) t)
-                                   (3 (beancount-face-by-state (match-string 2)) t))
+                                   (2 (beancount-set-flag-char))
+                                   (2 (beancount-face-by-state (match-string-no-properties 2)) t)
+                                   (3 (beancount-face-by-state (match-string-no-properties 2)) t))
     (,beancount-posting-regexp (1 'beancount-account)
                                (2 'beancount-amount nil :lax))
     (,beancount-metadata-regexp (1 'beancount-metadata)
@@ -284,8 +299,8 @@ It can contain any number of symbols, which will be repeated."
                                              (2 'beancount-directive))
     ;; Fontify section headers when composed with outline-minor-mode.
     (,(concat "^\\(" beancount-outline-regexp "\\) .*") (0 (beancount-outline-face))
-                                                        (1 (beancount-set-outline-char))
-                                                        (2 (beancount-outline-hide-prefix)))
+     (1 (beancount-set-outline-char))
+     (1 (beancount-outline-hide-prefix)))
     ;; Tags and links.
     (,(concat "\\#[" beancount-tag-chars "]*") . 'beancount-tag)
     (,(concat "\\^[" beancount-tag-chars "]*") . 'beancount-link)
