@@ -546,10 +546,10 @@ With an argument move to the next non cleared transaction."
                    hash))
         hash))))
 
-(defconst beancount--open-regex
+(defconst beancount-open-regexp
   (concat "^\\(" beancount-date-regexp "\\) +open +\\(" beancount-account-regexp "\\)"))
 
-(defconst beancount--close-regex
+(defconst beancount-close-regexp
   (concat "^\\(" beancount-date-regexp "\\) +close +\\(" beancount-account-regexp "\\)"))
 
 (defun beancount-account-completion-table (string pred action)
@@ -568,10 +568,10 @@ Filter the account table to open accounts only if there is a date in the current
   (save-excursion
     (save-match-data
       (beancount-goto-transaction-begin)
-      (let ((close-dates (beancount--collect-pairs beancount--close-regex 2 1)))
+      (let ((close-dates (beancount--collect-pairs beancount-close-regexp 2 1)))
         (if (looking-at (concat "^\\(" beancount-date-regexp "\\)"))
             (let ((date (match-string-no-properties 1))
-                  (open-dates (beancount--collect-pairs beancount--open-regex 2 1)))
+                  (open-dates (beancount--collect-pairs beancount-open-regexp 2 1)))
               (seq-filter (lambda (account)
                              (let ((open-date (gethash account open-dates nil))
                                    (close-date (gethash account close-dates nil)))
