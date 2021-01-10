@@ -519,12 +519,55 @@ With an argument move to the next non cleared transaction."
               (puthash (match-string-no-properties n) nil hash)))
           (hash-table-keys hash))))))
 
+(defun beancount--collect-pairs (regexp n m)
+  "Create a hash from the match set of REGEXP where group N are the keys and group M are the values."
+  (save-excursion
+    (save-match-data
+      (let ((hash (make-hash-table :test 'equal)))
+        (goto-char (point-min))
+        (while (re-search-forward regexp nil t)
+          (puthash (match-string-no-properties n)
+                   (match-string-no-properties m)
+                   hash))
+        hash))))
+
+(defconst beancount--open-regex
+  (concat "^\\(" beancount-date-regexp "\\) +open +\\(" beancount-account-regexp "\\)"))
+
+(defconst beancount--close-regex
+  (concat "^\\(" beancount-date-regexp "\\) +close +\\(" beancount-account-regexp "\\)"))
+
 (defun beancount-account-completion-table (string pred action)
+  "Autocomplete beancount account STRING at point with PRED and ACTION.
+Filter the account table to open accounts only if there is a date in the current directive."
   (if (eq action 'metadata) '(metadata (category . beancount-account))
-    (if (null beancount-accounts)
-        (setq beancount-accounts
-              (sort (beancount-collect beancount-account-regexp 0) #'string<)))
+    (when (null beancount-accounts)
+      (setq beancount-accounts
+            (sort (beancount--filter-accounts
+                   (beancount-collect beancount-account-regexp 0))
+                  #'string<)))
     (complete-with-action action beancount-accounts string pred)))
+
+(defun beancount--filter-accounts (accounts)
+  "Filter the list ACCOUNTS keeping only open accounts."
+  (save-excursion
+    (save-match-data
+      (beancount-goto-transaction-begin)
+      (let ((close-dates (beancount--collect-pairs beancount--close-regex 2 1)))
+        (if (looking-at (concat "^\\(" beancount-date-regexp "\\)"))
+            (let ((date (match-string-no-properties 1))
+                  (open-dates (beancount--collect-pairs beancount--open-regex 2 1)))
+              (seq-filter (lambda (account)
+                             (let ((open-date (gethash account open-dates nil))
+                                   (close-date (gethash account close-dates nil)))
+                               (and (or (null open-date)
+                                        (not (string> open-date date)))
+                                    (or (null close-date)
+                                        (not (string< close-date date))))))
+                           accounts))
+          (seq-filter (lambda (account)
+                        (null (gethash account close-dates nil)))
+                      accounts))))))
 
 ;; Default to substring completion for beancount accounts.
 (defconst beancount--completion-overrides
@@ -634,9 +677,12 @@ Uses ido niceness according to `beancount-use-ido'."
         ;; completion tables thus directly build a list of the
         ;; accounts in the buffer
         (let ((beancount-accounts
-               (sort (beancount-collect beancount-account-regexp 0) #'string<)))
+               (sort (beancount--filter-accounts
+                      (beancount-collect beancount-account-regexp 0))
+                     #'string<)))
           (ido-completing-read "Account: " beancount-accounts
                                nil nil (thing-at-point 'word)))
+      (setq beancount-accounts nil)
       (completing-read "Account: " #'beancount-account-completion-table
                        nil t (thing-at-point 'word)))))
   (let ((bounds (bounds-of-thing-at-point 'word)))
